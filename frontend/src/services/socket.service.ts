@@ -5,7 +5,7 @@ import type {
   ServerRoomView,
 } from '../game/types';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:4000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'https://card-sequence-game-api.vercel.app';
 
 let socket: Socket | null = null;
 
