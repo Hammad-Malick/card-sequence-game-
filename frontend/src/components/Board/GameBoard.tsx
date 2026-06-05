@@ -5,6 +5,25 @@ import { useGameStore } from '../../store/gameStore';
 import { emitMakeMove } from '../../services/socket.service';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import type { Card } from '../../game/types';
+import type { ValidCellHighlightMode } from '../../game/board-cell-highlight.type';
+
+function getValidHighlightMode(
+  cellId: string,
+  selectedCard: Card | null,
+  validCellIds: string[]
+): ValidCellHighlightMode | null {
+  if (!selectedCard || !validCellIds.includes(cellId)) {
+    return null;
+  }
+  if (selectedCard.isTwoEyedJack) {
+    return 'wild';
+  }
+  if (selectedCard.isOneEyedJack) {
+    return 'remove';
+  }
+  return 'place';
+}
 
 function revealDelay(row: number, col: number): number {
   const dr = row - 4.5;
@@ -135,7 +154,7 @@ export function GameBoard() {
                 <BoardCellComponent
                   key={cell.id}
                   cell={cell}
-                  isValid={validCellIds.includes(cell.id)}
+                  highlightMode={getValidHighlightMode(cell.id, selectedCard, validCellIds)}
                   teams={teams}
                   onClick={handleCellClick}
                   revealDelay={revealed ? revealDelay(cell.row, cell.col) : 0}

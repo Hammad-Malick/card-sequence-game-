@@ -54,6 +54,104 @@
   animation: chipDrop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* ── Valid-cell heartbeat (hand card → matching board cells) ── */
+@keyframes cellHeartbeat {
+  0%, 100% { transform: scale(1); }
+  12%      { transform: scale(1.07); }
+  24%      { transform: scale(1.03); }
+  36%      { transform: scale(1.09); }
+  52%      { transform: scale(1.04); }
+  68%      { transform: scale(1); }
+}
+
+@keyframes cellHeartbeatGlow {
+  0%, 100% {
+    opacity: 0.25;
+    box-shadow: 0 0 4px 1px rgba(var(--hb-rgb), 0.35);
+  }
+  12% {
+    opacity: 0.95;
+    box-shadow: 0 0 14px 4px rgba(var(--hb-rgb), 0.85);
+  }
+  24% {
+    opacity: 0.45;
+    box-shadow: 0 0 6px 2px rgba(var(--hb-rgb), 0.5);
+  }
+  36% {
+    opacity: 1;
+    box-shadow: 0 0 18px 6px rgba(var(--hb-rgb), 0.95);
+  }
+  52% {
+    opacity: 0.55;
+    box-shadow: 0 0 8px 3px rgba(var(--hb-rgb), 0.6);
+  }
+  68% {
+    opacity: 0.25;
+    box-shadow: 0 0 4px 1px rgba(var(--hb-rgb), 0.35);
+  }
+}
+
+@keyframes cellHeartbeatRing {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(1);
+    border-color: rgba(var(--hb-rgb), 0.55);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(0.94);
+    border-color: rgba(var(--hb-rgb), 1);
+  }
+  24% {
+    opacity: 0.65;
+    transform: scale(0.98);
+    border-color: rgba(var(--hb-rgb), 0.7);
+  }
+  36% {
+    opacity: 1;
+    transform: scale(0.92);
+    border-color: rgba(var(--hb-rgb), 1);
+  }
+  52% {
+    opacity: 0.7;
+    transform: scale(0.96);
+    border-color: rgba(var(--hb-rgb), 0.75);
+  }
+  68% {
+    opacity: 0.55;
+    transform: scale(1);
+    border-color: rgba(var(--hb-rgb), 0.55);
+  }
+}
+
+.cell-heartbeat {
+  --hb-rgb: 250, 204, 21;
+  animation: cellHeartbeat 1.15s ease-in-out infinite;
+  transform-origin: center center;
+  z-index: 10;
+}
+
+.cell-heartbeat-wild {
+  --hb-rgb: 52, 211, 153;
+}
+
+.cell-heartbeat-remove {
+  --hb-rgb: 251, 146, 60;
+}
+
+.cell-heartbeat-glow {
+  animation: cellHeartbeatGlow 1.15s ease-in-out infinite;
+  background: rgba(var(--hb-rgb), 0.12);
+  border: 1.5px solid rgba(var(--hb-rgb), 0.75);
+  border-radius: 2px;
+}
+
+.cell-heartbeat-ring {
+  animation: cellHeartbeatRing 1.15s ease-in-out infinite;
+  border: 2px dashed rgba(var(--hb-rgb), 0.75);
+  inset: clamp(2px, 0.35vw, 4px);
+}
+
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;

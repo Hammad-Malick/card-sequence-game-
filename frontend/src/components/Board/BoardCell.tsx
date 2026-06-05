@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import type { BoardCell as BoardCellType, Team } from '../../game/types';
+import type { ValidCellHighlightMode } from '../../game/board-cell-highlight.type';
 import { PokerChip } from '../../assets/chips/PokerChip';
 import { getCardImageUrl } from '../../utils/cardImages';
 
 interface BoardCellProps {
   cell: BoardCellType;
-  isValid: boolean;
+  highlightMode: ValidCellHighlightMode | null;
   teams: Team[];
   onClick: (cellId: string) => void;
   revealDelay?: number;
 }
 
-export function BoardCellComponent({ cell, isValid, teams, onClick, revealDelay = 0 }: BoardCellProps) {
+export function BoardCellComponent({ cell, highlightMode, teams, onClick, revealDelay = 0 }: BoardCellProps) {
+  const isHighlighted = highlightMode !== null;
   const [imgError, setImgError] = useState(false);
 
   const occupyingTeam = cell.occupiedByTeamId
@@ -21,7 +23,7 @@ export function BoardCellComponent({ cell, isValid, teams, onClick, revealDelay 
 
   const imgUrl = cell.cardCode ? getCardImageUrl(cell.cardCode) : null;
 
-  const handleClick = () => { if (isValid) onClick(cell.id); };
+  const handleClick = () => { if (isHighlighted) onClick(cell.id); };
 
   /* ── Corner (free space) ── */
   if (cell.isCorner) {
@@ -44,19 +46,16 @@ export function BoardCellComponent({ cell, isValid, teams, onClick, revealDelay 
       onClick={handleClick}
       className={clsx(
         'cell-reveal relative w-full h-full rounded-[2px] overflow-hidden select-none',
-        'transition-transform duration-100',
-        isValid && !occupyingTeam && 'cursor-pointer scale-[1.07] z-10',
-        isValid && occupyingTeam  && 'cursor-pointer',
+        isHighlighted && 'cell-heartbeat cursor-pointer',
+        isHighlighted && highlightMode === 'wild' && 'cell-heartbeat-wild',
+        isHighlighted && highlightMode === 'remove' && 'cell-heartbeat-remove',
       )}
       style={{
         '--cell-delay': `${revealDelay}ms`,
         background: '#fff',
-        border: isValid
-          ? '1.5px solid #facc15'
-          : cell.isSequenceCell
+        border: cell.isSequenceCell
           ? '1px solid rgba(255,255,255,0.4)'
           : '1px solid #e5e7eb',
-        boxShadow: isValid ? '0 0 5px 1px rgba(250,204,21,0.55)' : 'none',
       } as React.CSSProperties}
       title={cell.cardCode ?? undefined}
     >
@@ -92,7 +91,7 @@ export function BoardCellComponent({ cell, isValid, teams, onClick, revealDelay 
               height: '150%',
               objectFit: 'fill',
               transform: 'translate(-50%, -50%) rotate(90deg)',
-              opacity: occupyingTeam ? 0.25 : 0.92,
+              opacity: occupyingTeam ? (isHighlighted ? 0.45 : 0.25) : (isHighlighted ? 1 : 0.92),
             }}
           />
         </div>
@@ -113,12 +112,12 @@ export function BoardCellComponent({ cell, isValid, teams, onClick, revealDelay 
         </div>
       )}
 
-      {/* Valid-move dashed ring */}
-      {isValid && !occupyingTeam && (
-        <div
-          className="absolute rounded-full pointer-events-none z-30"
-          style={{ inset: 'clamp(2px,0.4vw,5px)', border: '1.5px dashed rgba(250,204,21,0.9)' }}
-        />
+      {/* Valid-move heartbeat glow + ring */}
+      {isHighlighted && (
+        <>
+          <div className="cell-heartbeat-glow absolute inset-0 pointer-events-none z-20" />
+          <div className="cell-heartbeat-ring absolute rounded-[2px] pointer-events-none z-30" />
+        </>
       )}
     </div>
   );
