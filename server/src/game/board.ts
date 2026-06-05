@@ -1,22 +1,22 @@
 import type { BoardCell } from './game.types';
 
 /**
- * Standard Sequence board layout (10x10).
+ * Official Sequence board layout (10x10) — matches physical Hasbro board.
  * null = corner (free/wild space for all teams).
  * Each non-Jack card appears exactly twice across the 96 non-corner cells.
  * Card codes: rank + suit initial (e.g. 'AH' = Ace of Hearts, 'TS' = 10 of Spades)
  */
 export const SEQUENCE_BOARD_LAYOUT: (string | null)[][] = [
-  [null, '2S',  '3S',  '4S',  '5S',  '6S',  '7S',  '8S',  '9S',  null ],
-  ['6C', '5C',  '4C',  '3C',  '2C',  'AH',  'KH',  'QH',  'TH',  'TS' ],
-  ['7C', 'AS',  '2D',  '3D',  '4D',  '5D',  '6D',  '7D',  '9H',  'QS' ],
-  ['8C', 'KS',  '6H',  '5H',  '4H',  '3H',  '2H',  '8D',  '8H',  'AD' ],
-  ['9C', 'QS',  '7H',  'AC',  'KD',  'QD',  'AH',  '9D',  '9H',  'KC' ],
-  ['TC', 'TH',  '8H',  'KC',  'QD',  'KD',  'KH',  'TD',  '6H',  '2C' ],
-  ['QC', '9C',  'TC',  '7C',  'TS',  'QH',  '8C',  'KS',  '6C',  '5C' ],
-  ['QC', 'AS',  'AC',  '7H',  'TD',  'AD',  '2H',  '3H',  '4H',  '5H' ],
-  ['3C', '2S',  '3S',  '4S',  '5S',  '6S',  '7S',  '8S',  '9S',  '4C' ],
-  [null, '2D',  '3D',  '4D',  '5D',  '6D',  '7D',  '8D',  '9D',  null ],
+  [null, 'TS',  'QS',  'KS',  'AS',  '2D',  '3D',  '4D',  '5D',  null ],
+  ['9S', 'TH',  '9H',  '8H',  '7H',  '6H',  '5H',  '4H',  '3H',  '6D' ],
+  ['8S', 'QH',  '7D',  '8D',  '9D',  'TD',  'QD',  'KD',  '2H',  '7D' ],
+  ['7S', 'KH',  '6D',  '2C',  'AH',  'KH',  'QH',  'AD',  '2S',  '8D' ],
+  ['6S', 'AH',  '5D',  '3C',  '4H',  '3H',  'TH',  'AC',  '3S',  '9D' ],
+  ['5S', '2C',  '4D',  '4C',  '5H',  '2H',  '9H',  'KC',  '4S',  'TD' ],
+  ['4S', '3C',  '3D',  '5C',  '6H',  '7H',  '8H',  'QC',  '5S',  'QD' ],
+  ['3S', '4C',  '2D',  '6C',  '7C',  '8C',  '9C',  'TC',  '6S',  'KD' ],
+  ['2S', '5C',  'AS',  'KS',  'QS',  'TS',  '9S',  '8S',  '7S',  'AD' ],
+  [null, '6C',  '7C',  '8C',  '9C',  'TC',  'QC',  'KC',  'AC',  null ],
 ];
 
 export function createBoard(): BoardCell[][] {
