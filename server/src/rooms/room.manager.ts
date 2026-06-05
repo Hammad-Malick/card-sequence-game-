@@ -2,6 +2,9 @@ import type { Room, Player, GameMode, CreateRoomPayload, JoinRoomPayload, Reconn
 import { generateRoomCode } from '../utils/generateRoomCode';
 import { generateToken, generatePlayerId } from '../utils/generateToken';
 import { createInitialGameState, assignTeam, startGame, processMove, processReplaceDeadCard } from '../game/game.manager';
+import { upgradePlayerHandCards } from '../game/cheat-card.service';
+import type { CheatCardMode } from '../game/cheat-card.type';
+import { CHEAT_CARD_ERRORS } from '../game/cheat-card.constant';
 
 /** In-memory room store — cleared on server restart */
 const rooms = new Map<string, Room>();
@@ -302,6 +305,27 @@ export function endRoomGame(
   room.gameState.status = 'finished';
   room.updatedAt = Date.now();
   return { room };
+}
+
+export function cheatUpgradeHandCards(
+  roomCode: string,
+  playerId: string,
+  mode: CheatCardMode,
+  options: { cardCode?: string; handIndex?: number; all?: boolean }
+): { room: Room; upgradedCodes: string[] } | { error: string } {
+  const room = rooms.get(roomCode);
+  if (!room) {
+    return { error: CHEAT_CARD_ERRORS.ROOM_NOT_FOUND };
+  }
+
+  const result = upgradePlayerHandCards(room.players, playerId, mode, options);
+  if (!result.success) {
+    return { error: result.reason };
+  }
+
+  room.players = result.players;
+  room.updatedAt = Date.now();
+  return { room, upgradedCodes: result.upgradedCodes };
 }
 
 export function getRoom(roomCode: string): Room | undefined {

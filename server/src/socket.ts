@@ -13,6 +13,7 @@ import {
   restartRoomGame,
   endRoomGame,
   changePlayerTeam,
+  cheatUpgradeHandCards,
   getDisconnectGraceMs,
   getRoomBySocketId,
 } from './rooms/room.manager';
@@ -25,6 +26,8 @@ import type {
   ChatMessagePayload,
 } from './rooms/room.types';
 import type { MakeMovePayload, ReplaceDeadCardPayload } from './game/game.types';
+import type { CheatCardPayload } from './game/cheat-card.type';
+import { DEV_CHEAT_SOCKET_EVENT, CHEAT_CARD_ERRORS } from './game/cheat-card.constant';
 
 /** Serializes the game state for a specific player (only sends that player's hand) */
 function buildPlayerView(room: ReturnType<typeof createRoom>, playerId: string) {
@@ -278,6 +281,42 @@ export function registerSocketHandlers(io: Server): void {
     // ──────────────────────────────────────────────
     // CHAT
     // ──────────────────────────────────────────────
+
+    socket.on(DEV_CHEAT_SOCKET_EVENT, (payload: CheatCardPayload, ack: (res: unknown) => void) => {
+      try {
+        // if (process.env.NODE_ENV === 'production') {
+        //   return ack({ error: CHEAT_CARD_ERRORS.NOT_DEV });
+        // }
+
+        if (!payload?.roomCode || !payload?.playerId || !payload?.mode) {
+          return ack({ error: CHEAT_CARD_ERRORS.INVALID_TARGET });
+        }
+
+        const result = cheatUpgradeHandCards(
+          payload.roomCode,
+          payload.playerId,
+          payload.mode,
+          {
+            cardCode: payload.cardCode,
+            handIndex: payload.handIndex,
+            all: payload.all,
+          }
+        );
+
+        if ('error' in result) {
+          return ack({ error: result.error });
+        }
+
+        console.log(
+          `[dev:cheat] ${payload.mode} upgraded ${result.upgradedCodes.join(', ')} for ${payload.playerId}`
+        );
+        broadcastRoomUpdate(io, result.room);
+        ack({ success: true, upgradedCodes: result.upgradedCodes });
+      } catch (err) {
+        console.error('[dev:cheat-card]', err);
+        ack({ error: 'Internal server error.' });
+      }
+    });
 
     socket.on('game:chat-message', (payload: ChatMessagePayload) => {
       try {

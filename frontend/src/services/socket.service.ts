@@ -4,6 +4,8 @@ import type {
   GameMode,
   ServerRoomView,
 } from '../game/types';
+import type { CheatCardPayload, CheatCardResult } from '../game/cheat-card.type';
+import { DEV_CHEAT_SOCKET_EVENT } from '../constants/cheat-card.constant';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'https://card-sequence-game-api.onrender.com';
 
@@ -125,6 +127,12 @@ export function emitRestartGame(roomCode: string, hostId: string): Promise<{ err
 export function emitEndGame(roomCode: string, hostId: string): Promise<{ error?: string }> {
   return new Promise(resolve => {
     getSocket().emit('game:end', { roomCode, hostId }, resolve);
+  });
+}
+
+export function emitDevCheatCard(payload: CheatCardPayload): Promise<CheatCardResult> {
+  return new Promise(resolve => {
+    getSocket().emit(DEV_CHEAT_SOCKET_EVENT, payload, resolve);
   });
 }
 
