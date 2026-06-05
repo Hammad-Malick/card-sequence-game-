@@ -14,6 +14,7 @@ import {
   applySequencesToBoard,
   countSequencesPerTeam,
 } from './sequence-checker';
+import { buildAlternatingTurnOrder } from './turn-order.util';
 
 const TEAM_CONFIGS: Record<GameMode, Array<{ id: string; name: string; color: string }>> = {
   '2players': [
@@ -93,8 +94,8 @@ export function startGame(
     return { ...p, hand };
   });
 
-  const turnOrder = dealtPlayers.map(p => p.id);
-  const firstPlayer = turnOrder[0];
+  const turnOrder = buildAlternatingTurnOrder(dealtPlayers, state.teams);
+  const firstPlayer = turnOrder[0] ?? dealtPlayers[0]?.id ?? '';
 
   const newState: GameState = {
     ...state,
