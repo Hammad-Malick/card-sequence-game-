@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { getSocket, disconnectSocket } from '../services/socket.service';
 import { useGameStore } from './gameStore';
-import { appendChatMessage } from '../services/localStorage.service';
+import { appendChatMessage, clearSession, hasActiveSession } from '../services/localStorage.service';
+import { attemptAutoReconnect } from '../services/reconnect.service';
 import type { ServerRoomView, ChatMessage, RoomData, MyPlayer } from '../game/types';
 import toast from 'react-hot-toast';
 
@@ -12,11 +13,18 @@ interface SocketStore {
   teardownSocket: () => void;
 }
 
+let listenersRegistered = false;
+
 export const useSocketStore = create<SocketStore>(set => ({
   isConnected: false,
   isInitialized: false,
 
   initializeSocket: () => {
+    if (listenersRegistered) {
+      set({ isInitialized: true });
+      return;
+    }
+
     const socket = getSocket();
     const gameStore = useGameStore.getState;
 
@@ -42,15 +50,18 @@ export const useSocketStore = create<SocketStore>(set => ({
     socket.on('reconnect', () => {
       set({ isConnected: true });
       gameStore().setConnectionStatus('connected');
+      const { room } = gameStore();
+      if (!room && hasActiveSession()) {
+        attemptAutoReconnect().catch(() => {
+          // Session may be absent; ignore silently
+        });
+      }
     });
 
-    // Room updates (server pushes updated room to all players)
     socket.on('room:update', (data: ServerRoomView) => {
       if (!data?.room || !data?.myPlayer) return;
       gameStore().updateRoom(data.room as RoomData);
-      if (data.myPlayer) {
-        gameStore().updateMyPlayer(data.myPlayer as MyPlayer);
-      }
+      gameStore().updateMyPlayer(data.myPlayer as MyPlayer);
     });
 
     socket.on('player:disconnect', (data: { playerId: string; playerName: string }) => {
@@ -69,6 +80,7 @@ export const useSocketStore = create<SocketStore>(set => ({
       const myPlayer = gameStore().myPlayer;
       if (myPlayer?.id === data.playerId) {
         toast.error('You have been removed from the room by the host.');
+        clearSession();
         gameStore().clearGame();
       }
     });
@@ -82,11 +94,13 @@ export const useSocketStore = create<SocketStore>(set => ({
       toast.error(data.reason ?? 'An error occurred.');
     });
 
+    listenersRegistered = true;
     set({ isInitialized: true });
   },
 
   teardownSocket: () => {
     disconnectSocket();
+    listenersRegistered = false;
     set({ isConnected: false, isInitialized: false });
   },
 }));

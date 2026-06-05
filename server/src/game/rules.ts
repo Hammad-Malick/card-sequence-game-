@@ -40,6 +40,10 @@ export function validateMove(
     return validateOneEyedJack(cell, team.id);
   }
 
+  if (isDeadCard(card, state.board)) {
+    return { valid: false, reason: 'This card is dead. Tap it to replace before playing.' };
+  }
+
   return validateRegularCardMove(state.board, card, cell, team.id);
 }
 
@@ -132,7 +136,8 @@ export function checkWinner(
 }
 
 /**
- * Returns the next turn index, cycling through connected players.
+ * Returns the next turn index, cycling through the turn order array.
+ * Prefer getNextActiveTurnIndex from turn-advance.util for live games.
  */
 export function getNextTurnIndex(
   currentIndex: number,

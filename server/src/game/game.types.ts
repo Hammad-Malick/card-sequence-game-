@@ -51,6 +51,7 @@ export interface GameState {
   winnerTeamId: string | null;
   moveHistory: Move[];
   turnOrder: string[];
+  turnStartedAt: number | null;
 }
 
 export interface MakeMovePayload {

@@ -6,6 +6,11 @@ import { useGameStore } from '../store/gameStore';
 import { emitCreateRoom } from '../services/socket.service';
 import { saveSession } from '../services/localStorage.service';
 import type { GameMode } from '../game/types';
+import {
+  CARDS_PER_HAND_OPTIONS,
+  TURN_TIMER_OPTIONS,
+  DEFAULT_ROOM_SETTINGS,
+} from '../constants/room-settings.constant';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
@@ -20,6 +25,8 @@ export function CreateRoomPage() {
   const { setRoomView } = useGameStore();
   const [playerName, setPlayerName] = useState('');
   const [gameMode, setGameMode] = useState<GameMode>('2players');
+  const [cardsPerHand, setCardsPerHand] = useState<number | null>(DEFAULT_ROOM_SETTINGS.cardsPerHand);
+  const [turnTimerSeconds, setTurnTimerSeconds] = useState(DEFAULT_ROOM_SETTINGS.turnTimerSeconds);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -36,7 +43,10 @@ export function CreateRoomPage() {
 
     setIsLoading(true);
     try {
-      const res = await emitCreateRoom(name, gameMode);
+      const res = await emitCreateRoom(name, gameMode, {
+        cardsPerHand,
+        turnTimerSeconds,
+      });
       if (res.error) {
         toast.error(res.error);
         return;
@@ -126,6 +136,46 @@ export function CreateRoomPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Cards per Hand
+                </label>
+                <select
+                  value={cardsPerHand === null ? 'default' : String(cardsPerHand)}
+                  onChange={e => {
+                    const value = e.target.value;
+                    setCardsPerHand(value === 'default' ? null : Number(value));
+                  }}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500"
+                >
+                  {CARDS_PER_HAND_OPTIONS.map(option => (
+                    <option
+                      key={option.value === null ? 'default' : option.value}
+                      value={option.value === null ? 'default' : String(option.value)}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Turn Timer
+                </label>
+                <select
+                  value={String(turnTimerSeconds)}
+                  onChange={e => setTurnTimerSeconds(Number(e.target.value))}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-emerald-500"
+                >
+                  {TURN_TIMER_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <Button type="submit" variant="primary" size="lg" fullWidth loading={isLoading}>

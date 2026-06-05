@@ -8,6 +8,18 @@ import type {
 import { getValidPlacementCells, getRemovableCells } from '../game/board';
 import { isDeadCard } from '../game/deck';
 import { saveSession, updateLastGameState } from '../services/localStorage.service';
+import { DEFAULT_ROOM_SETTINGS } from '../constants/room-settings.constant';
+
+function normalizeRoom(room: RoomData): RoomData {
+  return {
+    ...room,
+    settings: room.settings ?? DEFAULT_ROOM_SETTINGS,
+    gameState: {
+      ...room.gameState,
+      turnStartedAt: room.gameState.turnStartedAt ?? null,
+    },
+  };
+}
 
 interface GameStore {
   room: RoomData | null;
@@ -43,36 +55,43 @@ export const useGameStore = create<GameStore>((set, get) => ({
   connectionStatus: 'disconnected',
 
   setRoomView: (room, myPlayer) => {
-    set({ room, myPlayer, error: null });
+    const normalizedRoom = normalizeRoom(room);
+    set({ room: normalizedRoom, myPlayer, error: null });
     saveSession({
       playerId: myPlayer.id,
       playerName: myPlayer.name,
-      roomCode: room.code,
+      roomCode: normalizedRoom.code,
       teamId: myPlayer.teamId,
       isHost: myPlayer.isHost,
       reconnectToken: myPlayer.reconnectToken,
     });
-    if (room.gameState.status === 'playing') {
-      updateLastGameState(room.gameState);
+    if (normalizedRoom.gameState.status === 'playing') {
+      updateLastGameState(normalizedRoom.gameState);
     }
   },
 
   updateRoom: (room) => {
-    set(state => ({
-      room,
-      // Keep myPlayer hand in sync from the room's player list
-      myPlayer: state.myPlayer
-        ? {
-            ...state.myPlayer,
-            ...room.players.find(p => p.id === state.myPlayer?.id),
-            reconnectToken: state.myPlayer.reconnectToken,
-          }
-        : state.myPlayer,
-      selectedCard: null,
-      validCellIds: [],
-    }));
-    if (room.gameState.status === 'playing') {
-      updateLastGameState(room.gameState);
+    const normalizedRoom = normalizeRoom(room);
+    set(state => {
+      const publicSelf = normalizedRoom.players.find(p => p.id === state.myPlayer?.id);
+      return {
+        room: normalizedRoom,
+        myPlayer: state.myPlayer
+          ? {
+              ...state.myPlayer,
+              name: publicSelf?.name ?? state.myPlayer.name,
+              teamId: publicSelf?.teamId ?? state.myPlayer.teamId,
+              isHost: publicSelf?.isHost ?? state.myPlayer.isHost,
+              hand: publicSelf?.hand?.length ? publicSelf.hand : state.myPlayer.hand,
+              reconnectToken: state.myPlayer.reconnectToken,
+            }
+          : state.myPlayer,
+        selectedCard: null,
+        validCellIds: [],
+      };
+    });
+    if (normalizedRoom.gameState.status === 'playing') {
+      updateLastGameState(normalizedRoom.gameState);
     }
   },
 

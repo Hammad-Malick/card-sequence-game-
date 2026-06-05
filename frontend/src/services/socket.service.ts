@@ -2,6 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import type {
   Card,
   GameMode,
+  RoomSettings,
   ServerRoomView,
 } from '../game/types';
 import type { CheatCardPayload, CheatCardResult } from '../game/cheat-card.type';
@@ -12,7 +13,7 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'https://card-sequence-gam
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
-  if (!socket || !socket.connected) {
+  if (!socket) {
     socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -35,10 +36,11 @@ export function disconnectSocket(): void {
 
 export function emitCreateRoom(
   playerName: string,
-  gameMode: GameMode
+  gameMode: GameMode,
+  settings?: Partial<RoomSettings>
 ): Promise<ServerRoomView & { error?: string }> {
   return new Promise(resolve => {
-    getSocket().emit('room:create', { playerName, gameMode }, resolve);
+    getSocket().emit('room:create', { playerName, gameMode, settings }, resolve);
   });
 }
 

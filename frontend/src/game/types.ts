@@ -39,6 +39,11 @@ export interface Team {
 
 export type GameStatus = 'waiting' | 'playing' | 'finished';
 
+export interface RoomSettings {
+  cardsPerHand: number | null;
+  turnTimerSeconds: number;
+}
+
 export interface GameState {
   status: GameStatus;
   board: BoardCell[][];
@@ -51,6 +56,7 @@ export interface GameState {
   winnerTeamId: string | null;
   moveHistory: Move[];
   turnOrder: string[];
+  turnStartedAt: number | null;
 }
 
 export type GameMode = '2players' | '2teams' | '3teams';
@@ -69,6 +75,7 @@ export interface RoomData {
   code: string;
   hostId: string;
   gameMode: GameMode;
+  settings: RoomSettings;
   gameState: GameState;
   players: PublicPlayer[];
   createdAt: number;

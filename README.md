@@ -39,7 +39,7 @@ A full-featured real-time multiplayer **Sequence** board game built with React, 
 3. **Turn** — select a card from your hand, click the matching board position to place your chip.
 4. **Two-eyed Jacks** (JD, JC) — wild card: place chip on any empty cell.
 5. **One-eyed Jacks** (JH, JS) — remove an opponent's chip (cannot remove protected sequence chips).
-6. **Dead cards** — if all positions for a card are occupied, tap it to replace before your turn.
+6. **Dead cards** — if all board positions for a card are occupied, tap it at the start of your turn to discard it and draw a replacement (your turn does not end).
 7. **Sequence** — 5 chips in a row (horizontal/vertical/diagonal) for your team.
 8. **Win condition** — 2 sequences wins in 2-player/2-team mode; 1 sequence in 3-team mode.
 

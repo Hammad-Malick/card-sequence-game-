@@ -90,7 +90,7 @@ export function PlayingCard({
       {isDead && (
         <div className="absolute inset-0 bg-red-100/80 flex items-center justify-center">
           <div className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded text-center leading-tight tracking-tight">
-            DEAD<br />TAP
+            DEAD<br />TAP TO REPLACE
           </div>
         </div>
       )}

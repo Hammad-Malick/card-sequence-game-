@@ -7,7 +7,9 @@ import { ChatBox } from '../components/Chat/ChatBox';
 import { WinnerModal } from '../components/Modals/WinnerModal';
 import { ConfirmModal } from '../components/Modals/ConfirmModal';
 import { Button } from '../components/UI/Button';
+import { TurnTimer } from '../components/Game/TurnTimer';
 import { useGameStore } from '../store/gameStore';
+import { DEFAULT_ROOM_SETTINGS } from '../constants/room-settings.constant';
 import { emitLeaveRoom, emitEndGame } from '../services/socket.service';
 import { clearSession } from '../services/localStorage.service';
 import toast from 'react-hot-toast';
@@ -32,6 +34,10 @@ export function GamePage() {
   const gameState = room.gameState;
   const isMyTurn = gameState.currentTurnPlayerId === myPlayer.id;
   const currentTurnPlayer = room.players.find(p => p.id === gameState.currentTurnPlayerId);
+  const currentTurnTeam = gameState.teams.find(
+    t => t.id === currentTurnPlayer?.teamId
+  );
+  const roomSettings = room.settings ?? DEFAULT_ROOM_SETTINGS;
 
   const handleLeave = async () => {
     await emitLeaveRoom(room.code, myPlayer.id);
@@ -69,8 +75,19 @@ export function GamePage() {
                 ? 'border-yellow-500/50 bg-yellow-400/10 text-yellow-300'
                 : 'border-slate-700 bg-slate-800/60 text-slate-400'
             )}>
+              {currentTurnTeam && (
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: currentTurnTeam.color }}
+                />
+              )}
               {isMyTurn ? '🎯 Your Turn!' : `${currentTurnPlayer?.name ?? '…'}'s Turn`}
             </div>
+            <TurnTimer
+              turnStartedAt={gameState.turnStartedAt}
+              turnTimerSeconds={roomSettings.turnTimerSeconds}
+              isMyTurn={isMyTurn}
+            />
           </div>
 
           <div className="flex items-center gap-1 shrink-0">

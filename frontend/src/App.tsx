@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { SessionBootstrap } from './components/SessionBootstrap';
 import { HomePage } from './pages/HomePage';
 import { CreateRoomPage } from './pages/CreateRoomPage';
 import { JoinRoomPage } from './pages/JoinRoomPage';
@@ -9,6 +10,7 @@ import { GamePage } from './pages/GamePage';
 export default function App() {
   return (
     <>
+      <SessionBootstrap />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/create-room" element={<CreateRoomPage />} />

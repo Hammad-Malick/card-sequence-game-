@@ -5,6 +5,7 @@ import {
   reconnectPlayer,
   markPlayerDisconnected,
   removeDisconnectedPlayer,
+  schedulePlayerEviction,
   leaveRoom,
   kickPlayer,
   startRoomGame,
@@ -16,6 +17,8 @@ import {
   cheatUpgradeHandCards,
   getDisconnectGraceMs,
   getRoomBySocketId,
+  scheduleTurnTimer,
+  cancelTurnTimer,
 } from './rooms/room.manager';
 import type {
   CreateRoomPayload,
@@ -38,6 +41,7 @@ function buildPlayerView(room: ReturnType<typeof createRoom>, playerId: string) 
       code: room.code,
       hostId: room.hostId,
       gameMode: room.gameMode,
+      settings: room.settings,
       gameState: {
         ...room.gameState,
         deck: [], // Never send deck to client
@@ -75,6 +79,14 @@ function broadcastRoomUpdate(io: Server, room: ReturnType<typeof createRoom>) {
     if (player.connected && player.socketId) {
       io.to(player.socketId).emit('room:update', buildPlayerView(room, player.id));
     }
+  }
+
+  if (room.gameState.status === 'playing' && room.settings.turnTimerSeconds > 0) {
+    scheduleTurnTimer(room.code, updatedRoom => {
+      broadcastRoomUpdate(io, updatedRoom);
+    });
+  } else {
+    cancelTurnTimer(room.code);
   }
 }
 
@@ -349,14 +361,12 @@ export function registerSocketHandlers(io: Server): void {
 
       broadcastRoomUpdate(io, room);
 
-      // Remove player if still disconnected after grace period
-      setTimeout(() => {
-        const updatedRoom = removeDisconnectedPlayer(room.code, player.id);
+      schedulePlayerEviction(room.code, player.id, updatedRoom => {
         if (updatedRoom) {
           io.to(updatedRoom.code).emit('player:left', { playerId: player.id });
           broadcastRoomUpdate(io, updatedRoom);
         }
-      }, getDisconnectGraceMs());
+      });
     });
   });
 }

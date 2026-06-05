@@ -1,16 +1,41 @@
 import type { Room, Player, GameMode, CreateRoomPayload, JoinRoomPayload, ReconnectPayload } from './room.types';
 import { generateRoomCode } from '../utils/generateRoomCode';
 import { generateToken, generatePlayerId } from '../utils/generateToken';
-import { createInitialGameState, assignTeam, startGame, processMove, processReplaceDeadCard } from '../game/game.manager';
+import {
+  createInitialGameState,
+  assignTeam,
+  startGame,
+  processMove,
+  processReplaceDeadCard,
+  handlePlayerRemovedTurn,
+  skipTurnDueToTimeout,
+} from '../game/game.manager';
+import { isTurnExpired } from '../game/turn-timer.service';
+import { normalizeRoomSettings } from './room-settings.util';
 import { upgradePlayerHandCards } from '../game/cheat-card.service';
 import type { CheatCardMode } from '../game/cheat-card.type';
 import { CHEAT_CARD_ERRORS } from '../game/cheat-card.constant';
+import { DISCONNECT_GRACE_MS } from './disconnect-grace.constant';
 
 /** In-memory room store — cleared on server restart */
 const rooms = new Map<string, Room>();
 
 const STALE_ROOM_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
-const DISCONNECT_GRACE_MS = 60_000; // 60 seconds before removing disconnected player
+
+/** Pending eviction timers keyed by playerId */
+const pendingEvictionTimers = new Map<string, NodeJS.Timeout>();
+
+/** Pending turn timers keyed by roomCode */
+const pendingTurnTimers = new Map<string, NodeJS.Timeout>();
+
+/** Tracks which turn the active timer was scheduled for (playerId:turnStartedAt) */
+const lastTurnTimerKeys = new Map<string, string>();
+
+function buildTurnTimerKey(room: Room): string {
+  return `${room.gameState.currentTurnPlayerId}:${room.gameState.turnStartedAt ?? 'none'}`;
+}
+
+export type TurnTimerExpiredCallback = (room: Room) => void;
 
 // Periodically clean up stale rooms
 setInterval(() => {
@@ -58,6 +83,7 @@ export function createRoom(payload: CreateRoomPayload, socketId: string): Room |
     players: [host],
     gameState,
     gameMode: payload.gameMode,
+    settings: normalizeRoomSettings(payload.settings),
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -115,8 +141,33 @@ export function reconnectPlayer(
   player.connected = true;
   player.socketId = socketId;
   player.disconnectedAt = null;
+  cancelPlayerEviction(player.id);
   room.updatedAt = Date.now();
   return { room, player };
+}
+
+export function cancelPlayerEviction(playerId: string): void {
+  const timer = pendingEvictionTimers.get(playerId);
+  if (timer) {
+    clearTimeout(timer);
+    pendingEvictionTimers.delete(playerId);
+  }
+}
+
+export function schedulePlayerEviction(
+  roomCode: string,
+  playerId: string,
+  onEvicted: (room: Room | null) => void
+): void {
+  cancelPlayerEviction(playerId);
+
+  const timer = setTimeout(() => {
+    pendingEvictionTimers.delete(playerId);
+    const updatedRoom = removeDisconnectedPlayerIfStillOffline(roomCode, playerId);
+    onEvicted(updatedRoom);
+  }, DISCONNECT_GRACE_MS);
+
+  pendingEvictionTimers.set(playerId, timer);
 }
 
 export function markPlayerDisconnected(socketId: string): { room: Room; player: Player } | null {
@@ -132,12 +183,27 @@ export function markPlayerDisconnected(socketId: string): { room: Room; player: 
   return null;
 }
 
+export function removeDisconnectedPlayerIfStillOffline(
+  roomCode: string,
+  playerId: string
+): Room | null {
+  const room = rooms.get(roomCode);
+  if (!room) return null;
+
+  const player = room.players.find(p => p.id === playerId);
+  if (!player || player.connected) return null;
+
+  return removeDisconnectedPlayer(roomCode, playerId);
+}
+
 export function removeDisconnectedPlayer(roomCode: string, playerId: string): Room | null {
   const room = rooms.get(roomCode);
   if (!room) return null;
 
   const playerIndex = room.players.findIndex(p => p.id === playerId);
   if (playerIndex === -1) return null;
+
+  cancelPlayerEviction(playerId);
 
   const player = room.players[playerIndex];
 
@@ -148,6 +214,7 @@ export function removeDisconnectedPlayer(roomCode: string, playerId: string): Ro
   }
 
   room.players.splice(playerIndex, 1);
+  room.gameState = handlePlayerRemovedTurn(room.gameState, playerId, room.players);
 
   // If host leaves, promote next connected player
   if (room.hostId === playerId && room.players.length > 0) {
@@ -193,13 +260,90 @@ export function startRoomGame(
   if (!room) return { error: 'Room not found.' };
   if (room.hostId !== hostId) return { error: 'Only the host can start the game.' };
 
-  const result = startGame(room.gameState, room.players);
+  const result = startGame(room.gameState, room.players, room.settings);
   if (!result.success) return { error: result.reason };
 
   room.gameState = result.state;
   room.players = result.updatedPlayers;
   room.updatedAt = Date.now();
   return { room };
+}
+
+export function cancelTurnTimer(roomCode: string): void {
+  const timer = pendingTurnTimers.get(roomCode);
+  if (timer) {
+    clearTimeout(timer);
+    pendingTurnTimers.delete(roomCode);
+  }
+  lastTurnTimerKeys.delete(roomCode);
+}
+
+export function scheduleTurnTimer(
+  roomCode: string,
+  onExpired: TurnTimerExpiredCallback
+): void {
+  const room = rooms.get(roomCode);
+  if (!room) {
+    return;
+  }
+
+  if (room.settings.turnTimerSeconds <= 0 || room.gameState.status !== 'playing') {
+    cancelTurnTimer(roomCode);
+    return;
+  }
+
+  if (room.gameState.turnStartedAt === null) {
+    return;
+  }
+
+  const turnKey = buildTurnTimerKey(room);
+  const previousKey = lastTurnTimerKeys.get(roomCode);
+  if (previousKey === turnKey && pendingTurnTimers.has(roomCode)) {
+    return;
+  }
+
+  cancelTurnTimer(roomCode);
+  lastTurnTimerKeys.set(roomCode, turnKey);
+
+  const elapsedMs = Date.now() - room.gameState.turnStartedAt;
+  const remainingMs = room.settings.turnTimerSeconds * 1000 - elapsedMs;
+  const delayMs = Math.max(remainingMs, 0);
+
+  const timer = setTimeout(() => {
+    pendingTurnTimers.delete(roomCode);
+    const currentRoom = rooms.get(roomCode);
+    if (!currentRoom) {
+      return;
+    }
+
+    if (!isTurnExpired(currentRoom.gameState, currentRoom.settings)) {
+      return;
+    }
+
+    currentRoom.gameState = skipTurnDueToTimeout(
+      currentRoom.gameState,
+      currentRoom.players
+    );
+    currentRoom.updatedAt = Date.now();
+    onExpired(currentRoom);
+  }, delayMs);
+
+  pendingTurnTimers.set(roomCode, timer);
+}
+
+export function applyTurnTimeoutIfNeeded(roomCode: string): Room | null {
+  const room = rooms.get(roomCode);
+  if (!room) {
+    return null;
+  }
+
+  if (!isTurnExpired(room.gameState, room.settings)) {
+    return null;
+  }
+
+  room.gameState = skipTurnDueToTimeout(room.gameState, room.players);
+  room.updatedAt = Date.now();
+  return room;
 }
 
 export function changePlayerTeam(
@@ -247,6 +391,8 @@ export function makeMove(
   const room = rooms.get(roomCode);
   if (!room) return { error: 'Room not found.' };
 
+  applyTurnTimeoutIfNeeded(roomCode);
+
   const result = processMove(room.gameState, room.players, playerId, cardCode, cellId);
   if (!result.success) return { error: result.reason };
 
@@ -264,13 +410,20 @@ export function replaceDeadCard(
   const room = rooms.get(roomCode);
   if (!room) return { error: 'Room not found.' };
 
-  const result = processReplaceDeadCard(room.gameState, room.players, playerId, cardCode);
+  applyTurnTimeoutIfNeeded(roomCode);
+
+  const activeRoom = rooms.get(roomCode);
+  if (!activeRoom) {
+    return { error: 'Room not found.' };
+  }
+
+  const result = processReplaceDeadCard(activeRoom.gameState, activeRoom.players, playerId, cardCode);
   if (!result.success) return { error: result.reason };
 
-  room.gameState = result.state;
-  room.players = result.updatedPlayers;
-  room.updatedAt = Date.now();
-  return { room };
+  activeRoom.gameState = result.state;
+  activeRoom.players = result.updatedPlayers;
+  activeRoom.updatedAt = Date.now();
+  return { room: activeRoom };
 }
 
 export function restartRoomGame(

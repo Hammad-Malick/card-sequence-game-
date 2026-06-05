@@ -1,14 +1,21 @@
 import type { GameState, Team } from './game.types';
 import type { Player, GameMode } from '../rooms/room.types';
+import type { RoomSettings } from '../rooms/room-settings.type';
+import { resolveCardsPerHand } from '../rooms/room-settings.util';
+import { startTurnClock } from './turn-timer.service';
 import { createBoard } from './board';
-import { createDeck, shuffleDeck, dealCards, getHandSize } from './deck';
+import { createDeck, shuffleDeck, dealCards } from './deck';
 import {
   validateMove,
   isDeadCard,
   checkWinner,
-  getNextTurnIndex,
   buildMove,
 } from './rules';
+import {
+  advanceToNextActiveTurn,
+  ensureCurrentTurnIsActive,
+  applyPlayerRemovalToTurnState,
+} from './turn-advance.util';
 import {
   checkAllSequences,
   applySequencesToBoard,
@@ -52,6 +59,7 @@ export function createInitialGameState(gameMode: GameMode): GameState {
     winnerTeamId: null,
     moveHistory: [],
     turnOrder: [],
+    turnStartedAt: null,
   };
 }
 
@@ -77,7 +85,8 @@ export type StartGameResult =
 
 export function startGame(
   state: GameState,
-  players: Player[]
+  players: Player[],
+  settings: RoomSettings
 ): StartGameResult {
   const connectedPlayers = players.filter(p => p.connected);
   if (connectedPlayers.length < 2) {
@@ -85,7 +94,7 @@ export function startGame(
   }
 
   const shuffled = shuffleDeck(createDeck());
-  const handSize = getHandSize(connectedPlayers.length);
+  const handSize = resolveCardsPerHand(settings, connectedPlayers.length);
   let deck = shuffled;
 
   const dealtPlayers = connectedPlayers.map(p => {
@@ -97,7 +106,7 @@ export function startGame(
   const turnOrder = buildAlternatingTurnOrder(dealtPlayers, state.teams);
   const firstPlayer = turnOrder[0] ?? dealtPlayers[0]?.id ?? '';
 
-  const newState: GameState = {
+  const newState: GameState = startTurnClock({
     ...state,
     status: 'playing',
     board: createBoard(),
@@ -109,7 +118,8 @@ export function startGame(
     winnerTeamId: null,
     moveHistory: [],
     turnOrder,
-  };
+    turnStartedAt: null,
+  });
 
   // Merge dealt hands back into the full player list (include disconnected players with empty hands)
   const dealtMap = new Map(dealtPlayers.map(p => [p.id, p]));
@@ -204,31 +214,94 @@ export function processMove(
     newHand.push(drawnCard);
   }
 
-  // Advance turn
-  const nextIndex = getNextTurnIndex(state.currentTurnIndex, state.turnOrder);
-  const nextPlayerId = state.turnOrder[nextIndex];
+  const turnAdvance = winnerTeamId
+    ? {
+        currentTurnPlayerId: state.currentTurnPlayerId,
+        currentTurnIndex: state.currentTurnIndex,
+        turnOrder: state.turnOrder,
+      }
+    : advanceToNextActiveTurn(state, players);
 
   const move = buildMove(playerId, card, action, cellId);
 
-  const newState: GameState = {
+  const baseState: GameState = {
     ...state,
     board: newBoard,
     deck: newDeck,
     discardPile: newDiscardPile,
     teams: updatedTeams,
-    currentTurnPlayerId: winnerTeamId ? state.currentTurnPlayerId : nextPlayerId,
-    currentTurnIndex: winnerTeamId ? state.currentTurnIndex : nextIndex,
+    currentTurnPlayerId: turnAdvance.currentTurnPlayerId,
+    currentTurnIndex: turnAdvance.currentTurnIndex,
+    turnOrder: turnAdvance.turnOrder,
     winner: winnerTeamId ? updatedTeams.find(t => t.id === winnerTeamId)?.name ?? null : null,
     winnerTeamId,
     status: winnerTeamId ? 'finished' : 'playing',
     moveHistory: [...state.moveHistory.slice(-49), move],
   };
 
+  const newState: GameState = winnerTeamId
+    ? baseState
+    : startTurnClock(baseState);
+
   const updatedPlayers = players.map(p =>
     p.id === playerId ? { ...p, hand: newHand } : p
   );
 
   return { success: true, state: newState, updatedPlayers };
+}
+
+export function handlePlayerDisconnectedTurn(
+  state: GameState,
+  players: Player[]
+): GameState {
+  if (state.status !== 'playing') {
+    return state;
+  }
+
+  const turnUpdate = ensureCurrentTurnIsActive(state, players);
+  const turnChanged = turnUpdate.currentTurnPlayerId !== state.currentTurnPlayerId;
+  if (!turnChanged) {
+    return { ...state, ...turnUpdate };
+  }
+  return startTurnClock({
+    ...state,
+    ...turnUpdate,
+  });
+}
+
+export function handlePlayerRemovedTurn(
+  state: GameState,
+  removedPlayerId: string,
+  players: Player[]
+): GameState {
+  if (state.status !== 'playing') {
+    return state;
+  }
+
+  const turnUpdate = applyPlayerRemovalToTurnState(state, removedPlayerId, players);
+  const turnChanged = turnUpdate.currentTurnPlayerId !== state.currentTurnPlayerId;
+  if (!turnChanged) {
+    return { ...state, ...turnUpdate };
+  }
+  return startTurnClock({
+    ...state,
+    ...turnUpdate,
+  });
+}
+
+export function skipTurnDueToTimeout(
+  state: GameState,
+  players: Player[]
+): GameState {
+  if (state.status !== 'playing') {
+    return state;
+  }
+
+  const turnAdvance = advanceToNextActiveTurn(state, players);
+  return startTurnClock({
+    ...state,
+    ...turnAdvance,
+  });
 }
 
 export type ReplaceDeadCardResult =

@@ -30,7 +30,7 @@ export function PlayerHand({ vertical = false }: PlayerHandProps) {
       }
       const res = await emitReplaceDeadCard(room.code, myPlayer.id, card);
       if (res.error) toast.error(res.error);
-      else toast.success('Dead card replaced!');
+      else toast.success('Card replaced!');
     },
     [room, myPlayer]
   );

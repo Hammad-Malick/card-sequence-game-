@@ -9,6 +9,8 @@ import { emitStartGame, emitLeaveRoom, emitKickPlayer, emitChangeTeam } from '..
 import { clearSession } from '../services/localStorage.service';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import { formatRoomSettingsSummary } from '../utils/room-settings.util';
+import { DEFAULT_ROOM_SETTINGS } from '../constants/room-settings.constant';
 
 const GAME_MODE_LABELS: Record<string, string> = {
   '2players': '2 Players (1v1)',
@@ -70,6 +72,7 @@ export function LobbyPage() {
 
   const connectedCount = room.players.filter(p => p.connected).length;
   const canStart = myPlayer.isHost && connectedCount >= 2;
+  const roomSettings = room.settings ?? DEFAULT_ROOM_SETTINGS;
 
   return (
     <GameLayout>
@@ -87,6 +90,14 @@ export function LobbyPage() {
               <Button variant="ghost" size="sm" onClick={() => setConfirmLeave(true)}>
                 Leave
               </Button>
+            </div>
+
+            {/* Room settings */}
+            <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 mb-4">
+              <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">Room Settings</p>
+              <p className="text-slate-300 text-sm font-medium">
+                {formatRoomSettingsSummary(roomSettings)}
+              </p>
             </div>
 
             {/* Room code */}

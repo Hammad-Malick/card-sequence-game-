@@ -1,4 +1,5 @@
 import type { GameState } from '../game/game.types';
+import type { RoomSettings } from './room-settings.type';
 
 export type GameMode = '2players' | '2teams' | '3teams';
 
@@ -21,6 +22,7 @@ export interface Room {
   players: Player[];
   gameState: GameState;
   gameMode: GameMode;
+  settings: RoomSettings;
   createdAt: number;
   updatedAt: number;
 }
@@ -28,6 +30,7 @@ export interface Room {
 export interface CreateRoomPayload {
   playerName: string;
   gameMode: GameMode;
+  settings?: Partial<RoomSettings>;
 }
 
 export interface JoinRoomPayload {
